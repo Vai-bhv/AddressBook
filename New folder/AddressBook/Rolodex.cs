@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.IO;
+using System.Linq.Expressions;
 
 namespace AddressBook
 {
@@ -19,27 +20,28 @@ namespace AddressBook
             _recipes.Add(RecipeType.Desserts, new List<Recipe>());
         }
 
-        public void DoStuff()
+    public void DoStuff()
+{
+    // Print a menu
+    ShowMenu();
+    
+    // Get the user's choice
+    MenuOption choice = GetMenuOption();
+    List<Contact> contacts = ReadAllContacts();
+    // while the user does not want to exit
+    while (choice != MenuOption.Exit)
+    {
+        // figure out what they want to do
+        // get information
+        // do stuff
+        if (choice == MenuOption.ListContacts || 
+            choice == MenuOption.SearchContacts || 
+            choice == MenuOption.RemoveContact)
         {
-            // Print a menu
-            ShowMenu();
-            // Get the user's choice
-            MenuOption choice = GetMenuOption();
-            
-            // while the user does not want to exit
-            while (choice != MenuOption.Exit)
+            if (contacts.Count != 0) // Only proceed if there are contacts
             {
-                // figure out what they want to do
-                // get information
-                // do stuff
-                switch(choice)
+                switch (choice)
                 {
-                    case MenuOption.AddPerson:
-                        DoAddPerson();
-                        break;
-                    case MenuOption.AddCompany:
-                        DoAddCompany();
-                        break;
                     case MenuOption.ListContacts:
                         DoListContacts();
                         break;
@@ -49,58 +51,63 @@ namespace AddressBook
                     case MenuOption.RemoveContact:
                         DoRemoveContact();
                         break;
-                    case MenuOption.AddRecipe:
-                        DoAddRecipe();
-                        break;
-                    case MenuOption.SearchEverything:
-                        DoSearchEverything();
-                        break;
-                    case MenuOption.ListReceipes:
-                        DoListRecipes();
-                        break;
                 }
-                ShowMenu();
-                choice = GetMenuOption();
             }
-        }
-
-        private void DoListRecipes()
-        {
-            Console.Clear();
-            Console.WriteLine("RECIPES!");
-
-            using (SqlConnection connection = new SqlConnection(_connectionString))
+            else
             {
-                connection.Open();
-                SqlCommand command = connection.CreateCommand();
-                command.CommandText = @"
-                    SELECT RecipeTypeId
-                         , Name
-                      FROM Recipes
-                  ORDER BY RecipeTypeId
-                         , Name
-                ";
-
-                int currentRecipeTypeId = -323;
-                SqlDataReader reader = command.ExecuteReader();
-                while (reader.Read())
-                {
-                    int recipeTypeId = reader.GetInt32(0);
-                    string title = reader.GetString(1);
-
-                    if (recipeTypeId != currentRecipeTypeId)
-                    {
-                        currentRecipeTypeId = recipeTypeId;
-                        RecipeType pretty = (RecipeType)currentRecipeTypeId;
-                        Console.WriteLine(pretty.ToString().ToUpper());
-                    }
-
-                    Console.WriteLine($"  {title}");
-                }
+                Console.WriteLine("No contacts available.");
             }
-
-            Console.ReadLine();
         }
+        else // For other options
+        {
+            switch (choice)
+            {
+                case MenuOption.AddPerson:
+                    DoAddPerson();
+                    break;
+                case MenuOption.AddCompany:
+                    DoAddCompany();
+                    break;
+                case MenuOption.AddRecipe:
+                    DoAddRecipe();
+                    break;
+                case MenuOption.SearchEverything:
+                    DoSearchEverything();
+                    break;
+                case MenuOption.ListReceipes:
+                    DoListRecipes();
+                    break;
+            }
+        }
+        
+        ShowMenu();
+        choice = GetMenuOption();
+    }
+}
+
+private void DoListRecipes()
+{
+    Console.Clear();
+    Console.WriteLine("RECIPES!");
+    foreach (RecipeType recipeType in Enum.GetValues(typeof(RecipeType)))
+{
+    if (_recipes.TryGetValue(recipeType, out List<Recipe> specificRecipes))
+    {
+        if (specificRecipes.Count > 0)
+        {
+            Console.WriteLine(recipeType.ToString().ToUpper());
+            foreach (Recipe recipe in specificRecipes)
+            {
+                Console.WriteLine($"  {recipe}"); // Display the recipe as is
+            }
+        }
+    }
+}
+
+
+    Console.ReadLine();
+}
+
 
         private void DoSearchEverything()
         {
@@ -150,34 +157,40 @@ namespace AddressBook
             string title = GetNonEmptyStringFromUser();
             Recipe recipe = new Recipe(title);
 
+        
             Console.WriteLine("What kind of recipe is this?");
-            for (int i = 0; i < (int)RecipeType.UPPER_LIMIT; i += 1)
-            {
-                Console.WriteLine($"{i}. {(RecipeType)i}");
-            }
-            /*
-            string input = Console.ReadLine();
-            int num = int.Parse(input);
-            RecipeType choice = (RecipeType) num;*/
-            RecipeType choice = (RecipeType)int.Parse(Console.ReadLine());
-            
-            List<Recipe> specificRecipes = _recipes[choice];
-            specificRecipes.Add(recipe);
-            /*_recipes[choice].Add(recipe);*/
+for (int i = 0; i < (int)RecipeType.UPPER_LIMIT; i += 1)
+{
+    Console.WriteLine($"{i}. {(RecipeType)i}");
+}
 
-            using (SqlConnection connection = new SqlConnection(_connectionString))
-            {
-                connection.Open();
+int choice;
+if (int.TryParse(Console.ReadLine(), out choice) && choice >= 0 && choice < (int)RecipeType.UPPER_LIMIT)
+{
+    RecipeType recipeType = (RecipeType)choice;
+    List<Recipe> specificRecipes = _recipes[recipeType];
+    specificRecipes.Add(recipe);
 
-                SqlCommand command = connection.CreateCommand();
-                command.CommandText = @"
-                    insert into recipes(recipetypeid, name)
-                    values(@giraffe, @lemur)
-                ";
-                command.Parameters.AddWithValue("@giraffe", choice);
-                command.Parameters.AddWithValue("@lemur", title);
-                command.ExecuteNonQuery();
-            }
+    using (SqlConnection connection = new SqlConnection(_connectionString))
+    {
+        connection.Open();
+
+        SqlCommand command = connection.CreateCommand();
+        command.CommandText = @"
+            insert into recipes(recipetypeid, name)
+            values(@giraffe, @lemur)
+        ";
+        command.Parameters.AddWithValue("@giraffe", recipeType);
+        command.Parameters.AddWithValue("@lemur", title);
+        command.ExecuteNonQuery();
+    }
+}
+else
+{
+    Console.WriteLine("Invalid choice. Please enter a valid recipe type.");
+    Console.ReadLine();
+}
+
         }
 
         private void DoRemoveContact()
@@ -189,6 +202,7 @@ namespace AddressBook
 
             List<Contact> contacts = ReadAllContacts();
             File.Delete(_contactsFileName);
+            if (contacts.Count!=0){
             foreach (Contact contact in contacts)
             {
                 if (contact.Matches(term))
@@ -207,9 +221,10 @@ namespace AddressBook
                 {
                     PutInFile(contact);
                 }
-            }
-
+            }}else
+            {
             Console.WriteLine("No more contacts found.");
+            }
             Console.WriteLine("Press Enter to return to the menu...");
             Console.ReadLine();
         }
@@ -222,12 +237,16 @@ namespace AddressBook
             string term = GetNonEmptyStringFromUser();
 
             List<Contact> contacts = ReadAllContacts();
+            if(contacts.Count!=0){
             foreach (Contact contact in contacts)
             {
                 if (contact.Matches(term))
                 {
                     Console.WriteLine($"> {contact}");
                 }
+            }}else
+            {
+                Console.WriteLine("No contacts found");
             }
 
             Console.WriteLine("Press Enter to continue...");
@@ -252,6 +271,7 @@ namespace AddressBook
         private List<Contact> ReadAllContacts()
         {
             List<Contact> contacts = new List<Contact>();
+            try {
             using (StreamReader reader = File.OpenText(_contactsFileName))
             {
                 while (!reader.EndOfStream)
@@ -274,6 +294,9 @@ namespace AddressBook
                         Console.WriteLine("You have junk in your contacts file.");
                     }
                 }
+            }
+            } catch (Exception ex) {
+                // Console.WriteLine("No file found sorry try agai")
             }
             contacts.Sort();
 
@@ -380,17 +403,37 @@ namespace AddressBook
             }
         }
 
+
         private MenuOption GetMenuOption()
         {
-            int choice = GetNumberFromUser();
-
-            while (choice < 0 || choice >= (int)MenuOption.UPPER_LIMIT)
+            while (true)
             {
-                Console.WriteLine("That is not valid.");
-                choice = GetNumberFromUser();
-            }
+                try
+                {
+                    int choice = GetNumberFromUser();
 
-            return (MenuOption)choice;
+                    if (choice >= 0 && choice < (int)MenuOption.UPPER_LIMIT)
+                    {
+                        return (MenuOption)choice;
+                    }
+                    else
+                    {
+                        Console.WriteLine("Invalid menu option. Please choose a valid option.");
+                    }
+                }
+                catch (FormatException)
+                {
+                    Console.WriteLine("You should type a number.");
+                }
+                catch (InvalidOperationException)
+                {
+                    Console.WriteLine("THAT WAS BAD! DO AGAIN!");
+                }
+                finally
+                {
+                    Console.WriteLine("THIS will ALWAYS be PRINTED.");
+                }
+            }
         }
 
         private void ShowMenu()
@@ -417,5 +460,7 @@ namespace AddressBook
         private Dictionary<RecipeType, List<Recipe>> _recipes;
         private readonly string _connectionString;
         private readonly string _contactsFileName;
+
+        
     }
 }
