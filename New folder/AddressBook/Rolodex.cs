@@ -85,10 +85,36 @@ namespace AddressBook
     }
 }
 
+private Dictionary<RecipeType, List<Recipe>> LoadRecipesFromFile()
+{
+    var loadedRecipes = new Dictionary<RecipeType, List<Recipe>>();
+    foreach (RecipeType recipeType in Enum.GetValues(typeof(RecipeType))) {
+        loadedRecipes[recipeType] = new List<Recipe>();
+    }
+    if (!File.Exists(_contactsFileName)) return loadedRecipes;
+
+    using (StreamReader reader = new StreamReader(_contactsFileName)) {
+        while (!reader.EndOfStream) {
+            var line = reader.ReadLine();
+            var parts = line.Split('|');
+
+            if(parts.Length == 3 && parts[0] == "Recipe") {
+                var title = parts[1];
+                if(Enum.TryParse(parts[2], out RecipeType recipeType)) {
+                    loadedRecipes[recipeType] = new List<Recipe>();
+                }
+                loadedRecipes[recipeType].Add(new Recipe(title));
+            }
+        }
+    }
+    return loadedRecipes;
+}
+
 private void DoListRecipes()
 {
     Console.Clear();
     Console.WriteLine("RECIPES!");
+    _recipes = LoadRecipesFromFile();
     foreach (RecipeType recipeType in Enum.GetValues(typeof(RecipeType)))
 {
     if (_recipes.TryGetValue(recipeType, out List<Recipe> specificRecipes))
@@ -109,6 +135,47 @@ private void DoListRecipes()
 }
 
 
+        //private void DoSearchEverything()
+        //{
+        //    Console.Clear();
+        //    Console.WriteLine("SEARCH EVERYTHING!");
+        //    Console.Write("Please enter a search term: ");
+        //    string term = GetNonEmptyStringFromUser();
+
+        //    List<Contact> contacts = ReadAllContacts();
+        //    List<IMatchable> matchables = new List<IMatchable>();
+        //    matchables.AddRange(contacts);
+
+        //    using (SqlConnection connection = new SqlConnection(_connectionString))
+        //    {
+        //        connection.Open();
+        //        SqlCommand command = connection.CreateCommand();
+        //        command.CommandText = @"
+        //            SELECT Name
+        //              FROM Recipes
+        //          ORDER BY Name
+        //        ";
+
+        //        SqlDataReader reader = command.ExecuteReader();
+
+        //        while (reader.Read())
+        //        {
+        //            string recipeTitle = reader.GetString(0);
+        //            Recipe recipe = new Recipe(recipeTitle);
+        //            matchables.Add(recipe);
+        //        }
+        //    }
+
+        //    foreach (IMatchable matcher in matchables)
+        //    {
+        //        if (matcher.Matches(term))
+        //        {
+        //            Console.WriteLine($"> {matcher}");
+        //        }
+        //    }
+        //    Console.ReadLine();
+        //}
+
         private void DoSearchEverything()
         {
             Console.Clear();
@@ -120,26 +187,30 @@ private void DoListRecipes()
             List<IMatchable> matchables = new List<IMatchable>();
             matchables.AddRange(contacts);
 
-            using (SqlConnection connection = new SqlConnection(_connectionString))
+            // using (SqlConnection connection = new SqlConnection(_connectionString))
+            // {
+            //     connection.Open();
+            //     SqlCommand command = connection.CreateCommand();
+            //     command.CommandText = @"
+            //         SELECT Name
+            //           FROM Recipes
+            //       ORDER BY Name
+            //     ";
+
+            //     SqlDataReader reader = command.ExecuteReader();
+
+            //     while (reader.Read())
+            //     {
+            //         string recipeTitle = reader.GetString(0);
+            //         Recipe recipe = new Recipe(recipeTitle);
+            //         matchables.Add(recipe);
+            //     }
+            // }
+            var loadedRecipes = LoadRecipesFromFile();
+            foreach (var recipeList in loadedRecipes.Values)
             {
-                connection.Open();
-                SqlCommand command = connection.CreateCommand();
-                command.CommandText = @"
-                    SELECT Name
-                      FROM Recipes
-                  ORDER BY Name
-                ";
-
-                SqlDataReader reader = command.ExecuteReader();
-
-                while (reader.Read())
-                {
-                    string recipeTitle = reader.GetString(0);
-                    Recipe recipe = new Recipe(recipeTitle);
-                    matchables.Add(recipe);
-                }
+                matchables.AddRange(recipeList);
             }
-
             foreach (IMatchable matcher in matchables)
             {
                 if (matcher.Matches(term))
@@ -159,38 +230,46 @@ private void DoListRecipes()
 
         
             Console.WriteLine("What kind of recipe is this?");
-for (int i = 0; i < (int)RecipeType.UPPER_LIMIT; i += 1)
-{
-    Console.WriteLine($"{i}. {(RecipeType)i}");
-}
 
-int choice;
-if (int.TryParse(Console.ReadLine(), out choice) && choice >= 0 && choice < (int)RecipeType.UPPER_LIMIT)
-{
-    RecipeType recipeType = (RecipeType)choice;
-    List<Recipe> specificRecipes = _recipes[recipeType];
-    specificRecipes.Add(recipe);
+            for (int i = 0; i < (int)RecipeType.UPPER_LIMIT; i += 1)
+            {
+                Console.WriteLine($"{i}. {(RecipeType)i}");
+            }
 
-    using (SqlConnection connection = new SqlConnection(_connectionString))
-    {
-        connection.Open();
+            int choice;
+            if (int.TryParse(Console.ReadLine(), out choice) && choice >= 0 && choice < (int)RecipeType.UPPER_LIMIT)
+            {
+                RecipeType recipeType = (RecipeType)choice;
+                List<Recipe> specificRecipes = _recipes[recipeType];
+                specificRecipes.Add(recipe);
+                PutInFile(recipe, recipeType);
+                // using (SqlConnection connection = new SqlConnection(_connectionString))
+                // {
+                //     connection.Open();
 
-        SqlCommand command = connection.CreateCommand();
-        command.CommandText = @"
-            insert into recipes(recipetypeid, name)
-            values(@giraffe, @lemur)
-        ";
-        command.Parameters.AddWithValue("@giraffe", recipeType);
-        command.Parameters.AddWithValue("@lemur", title);
-        command.ExecuteNonQuery();
-    }
-}
-else
-{
-    Console.WriteLine("Invalid choice. Please enter a valid recipe type.");
-    Console.ReadLine();
-}
+                //     SqlCommand command = connection.CreateCommand();
+                //     command.CommandText = @"
+                //         insert into recipes(recipetypeid, name)
+                //         values(@giraffe, @lemur)
+                //     ";
+                //     command.Parameters.AddWithValue("@giraffe", recipeType);
+                //     command.Parameters.AddWithValue("@lemur", title);
+                //     command.ExecuteNonQuery();
+                // }
+            }
+            else
+            {
+                Console.WriteLine("Invalid choice. Please enter a valid recipe type.");
+                Console.ReadLine();
+            }
 
+        }
+
+        private void PutInFile(Recipe recipe, RecipeType recipeType) {
+            using(StreamWriter writer = File.AppendText(_contactsFileName)) {
+                string title = recipe.GetTitle();
+                writer.WriteLine(string.Join("|", "Recipe", title, recipeType.ToString()));
+            }
         }
 
         private void DoRemoveContact()
@@ -291,7 +370,7 @@ else
                     }
                     else
                     {
-                        Console.WriteLine("You have junk in your contacts file.");
+                        //Console.WriteLine("You have junk in your contacts file.");
                     }
                 }
             }
@@ -400,6 +479,7 @@ else
                 {
                     Console.WriteLine("THIS will ALWAYS be PRINTED.");
                 }
+                
             }
         }
 
